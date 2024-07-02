@@ -36,12 +36,13 @@ library(ggplot2)
 install.packages("progress")
 library(progress)
 
-# 1. Datenvorbereitung
+# 1. Datenvorbereitung (Einlesen Paulos PC)
 diabetic_data_all <- read_csv("~/Documents/Dokumente - MacBook Air (10)/Dokumente/Bamberg/Semester 2/Stat. Machine Learning/diabetic_data.csv")
 
 diabetic_data <- diabetic_data_all[, c("readmitted", "race", "gender", "age", 
                                        "time_in_hospital", "number_emergency", "number_diagnoses", "diabetesMed", "metformin", "repaglinide", "nateglinide", "chlorpropamide", "glimepiride", "acetohexamide", "glipizide", "glyburide", "tolbutamide", "pioglitazone", "rosiglitazone", "acarbose", "miglitol", "troglitazone", "tolazamide", "examide", "citoglipton", "insulin", "glyburide-metformin", "glipizide-metformin", "glimepiride-pioglitazone", "metformin-rosiglitazone", "metformin-pioglitazone")]
-data_plot <- diabetic_data_all[, c("time_in_hospital", "number_emergency", "number_diagnoses", "diabetesMed", "num_lab_procedures", "num_procedures", "num_medications", "readmitted", "gender")]
+data_plot <- diabetic_data_all[, c("readmitted", "gender", 
+                                   "time_in_hospital", "number_inpatient", "number_outpatient", "number_diagnoses", "diabetesMed", "num_medications")]
 is.numeric(diabetic_data$number_diagnoses)
 
 table(diabetic_data$change)
@@ -50,8 +51,8 @@ anyNA(diabetic_data)
 table(diabetic_data$readmitted)
 ##remove NAs, in diesem Fall "?"
 data1 <- data1[data1$gender != "Unknown/Invalid", ]
-data <- diabetic_data_all[, c("readmitted", "race", "gender", "age", 
-                              "time_in_hospital", "number_emergency", "number_diagnoses", "diabetesMed", "num_lab_procedures", "num_procedures", "num_medications")]
+data <- diabetic_data_all[, c("readmitted", "gender", 
+                              "time_in_hospital", "number_inpatient", "number_outpatient", "number_diagnoses", "diabetesMed", "num_medications")]
 rows_with_question_mark <- apply(diabetic_data, 1, function(row) any(row == "?"))
 data1 <- data[!rows_with_question_mark, ]
 data_plot <- data_plot %>% mutate(gender = factor(
@@ -63,6 +64,8 @@ data_plot <- data_plot %>% mutate(diabetesMed = factor(
   diabetesMed, levels = c("No", "Yes"), labels = c(0,1)))
 data_plot$diabetesMed <- as.numeric(data_plot$diabetesMed)
 data1$readmitted_binary <- ifelse(data1$readmitted == "NO", "No", "Yes")
+data1$visits <- data1$number_inpatient + data1$number_outpatient
+table(data1$visits)
 #data1$readmitted_binary <- as.numeric(ifelse(data1$readmitted == "NO", 0, 1))
 data_plot$readmitted <- as.numeric(ifelse(data_plot$readmitted == "NO", 0, 1))
 is.numeric(data_plot$readmitted)
@@ -73,7 +76,7 @@ xtabs(~ readmitted_binary + gender, data = data1)
 xtabs(~ readmitted_binary + time_in_hospital, data = data1)
 
 ## 3. Logistische Regression
-glm1 <- glm(readmitted_binary ~ time_in_hospital + number_emergency + number_diagnoses + diabetesMed  + num_lab_procedures + num_procedures + num_medications + gender,
+glm1 <- glm(readmitted_binary ~ time_in_hospital + number_diagnoses + diabetesMed  + visits + num_medications + gender,
             data = data1, family = binomial)
 summary(glm1)
 coef(glm1)
@@ -180,7 +183,6 @@ colors <- brewer.pal(length(levels(data1$readmitted_binary)), "Set1")
 color_vector <- as.numeric(data1$readmitted_binary)
 colors_mapped <- colors[color_vector]
 pairs(data_plot, col = colors_mapped, pch = 19, main = "Pairs Plot Colored by Readmission Status")
-pairs(data_plot, col=data_plot$readmitted_binary)
 
 
 
@@ -396,23 +398,22 @@ summary(model)
 #test normalverteilungs-check
 
 set.seed(111)
-ggplot(data1, aes(x = num_medications)) +
+ggplot(data1, aes(x = visits)) +
   geom_histogram(binwidth = 1, fill = "skyblue", color = "black") +
-  labs(title = "Histogram of time_in_hospital",
-       x = "Time in Hospital",
+  labs(title = "Histogram of visits",
+       x = "visits",
        y = "Frequency")
 
-plot(data1$time_in_hospital)
+plot(data1$visits)
 
 #Grafik
 data1$readmitted_binary <- as.numeric(data1$readmitted_binary)
 table(data1$readmitted_binary)
 data1$probability2 <- ifelse(data1$prob_readmitted > 0.5, 1, 0)
-
-ggplot(data1, aes(x = num_medications, y = probability2)) +
+summary(glm1)
+ggplot(data1, aes(x =  gender, y = probability2)) +
   geom_jitter(height = 0.05, width = 0, alpha = 0.5) +  # Fügt die Punkte hinzu, leicht vertikal gestreut
   geom_smooth(method = "glm", method.args = list(family = "binomial"), se = FALSE, color = "blue") + # Logistische Regressionslinie
-  labs(x = "Time in Hospital", y = "Probability of Readmission") + # Beschriftet die Achsen
-  ggtitle("Probability of Readmission vs Time in Hospital") + # Fügt einen Titel hinzu
+  labs(x = "gender", y = "Probability of Readmission") + # Beschriftet die Achsen
+  ggtitle("Probability of Readmission vs Gender") + # Fügt einen Titel hinzu
   theme_minimal()
-
